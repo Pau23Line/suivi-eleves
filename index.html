@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi de classe — Professeur principal</title>
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Suivi de classe">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#6F5C46">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Karla:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<style>
+:root{
+  --bleu:#6F5C46;         /* taupe profond (couleur principale) */
+  --bleu-clair:#EFE7D9;   /* beige clair (accents, fonds) */
+  --rouge:#B04A3D;        /* brique chaud (danger) */
+  --encre:#2E2820;        /* brun très foncé (texte) */
+  --gris:#8A7F6C;         /* gris chaud */
+  --papier:#FAF6EF;       /* papier chaud */
+  --carte:#FFFFFF;
+  --ligne:#E7DDCB;        /* bordure claire chaude */
+  --ok:#5E7A52;           /* vert sauge */
+  --ok-clair:#E7EFDF;
+  --attente:#B0663B;      /* ambre/terracotta */
+  --attente-clair:#F6E8DB;
+  --beige:#E0D0B8;        /* beige du logo (pastilles, avatars) */
+  --r:8px;
+  --larg-nav:264px;
+  --haut-barre:64px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+body{font-family:'Karla',sans-serif;color:var(--encre);background:var(--papier);min-height:100vh}
+h1,h2,h3,.num{font-family:'Space Grotesk',sans-serif}
+
+/* ---------- Bouton hamburger ---------- */
+#btnMenu{
+  position:fixed;top:12px;left:12px;z-index:60;
+  width:44px;height:44px;border:1px solid var(--ligne);border-radius:var(--r);
+  background:#fff;cursor:pointer;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;
+  box-shadow:0 1px 4px rgba(0,0,0,.12);
+}
+#btnMenu span{display:block;width:20px;height:2.5px;background:var(--bleu);border-radius:2px;transition:transform .2s,opacity .2s}
+body.nav-ouverte #btnMenu span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+body.nav-ouverte #btnMenu span:nth-child(2){opacity:0}
+body.nav-ouverte #btnMenu span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+#btnMenu:focus-visible{outline:2px solid var(--bleu);outline-offset:2px}
+
+/* ---------- Sommaire coulissant (rubriques de classe) ---------- */
+nav.lateral{
+  position:fixed;top:0;left:0;height:100vh;width:var(--larg-nav);z-index:50;
+  background:var(--bleu);color:#fff;display:flex;flex-direction:column;
+  transform:translateX(-100%);transition:transform .22s ease;
+}
+body.nav-ouverte nav.lateral{transform:translateX(0)}
+#voile{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;opacity:0;pointer-events:none;transition:opacity .22s}
+nav.lateral .titre{padding:18px 20px 14px 68px;border-bottom:1px solid rgba(255,255,255,.25)}
+nav.lateral .titre h1{font-size:1.02rem;font-weight:700}
+nav.lateral .titre input{
+  margin-top:8px;width:100%;background:transparent;border:none;border-bottom:1px dashed rgba(255,255,255,.5);
+  color:#fff;font:inherit;font-size:.85rem;padding:2px 0;
+}
+nav.lateral .titre input::placeholder{color:rgba(255,255,255,.6)}
+nav.lateral .intitule{
+  padding:12px 20px 4px;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.55);
+}
+nav.lateral ul{list-style:none;flex:1;overflow-y:auto;padding:0 0 10px}
+nav.lateral li button{
+  display:flex;align-items:baseline;gap:12px;width:100%;text-align:left;
+  background:none;border:none;color:rgba(255,255,255,.85);cursor:pointer;
+  padding:12px 20px;font:inherit;font-size:.92rem;border-left:4px solid transparent;
+}
+nav.lateral li button .num{font-weight:700;font-size:1.1rem;min-width:1.2em;opacity:.7}
+nav.lateral li button:hover{background:rgba(255,255,255,.08)}
+nav.lateral li button:focus-visible{outline:2px solid #fff;outline-offset:-2px}
+nav.lateral li button.actif{background:var(--papier);color:var(--bleu);border-left-color:var(--rouge);font-weight:700}
+nav.lateral li button.actif .num{opacity:1}
+nav.lateral .pied{padding:14px 20px;border-top:1px solid rgba(255,255,255,.25);display:flex;flex-direction:column;gap:8px}
+nav.lateral .pied button{
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.4);color:#fff;
+  border-radius:var(--r);padding:8px;font:inherit;font-size:.85rem;cursor:pointer;
+}
+nav.lateral .pied button:hover{background:rgba(255,255,255,.22)}
+nav.lateral .pied small{color:rgba(255,255,255,.6);font-size:.72rem;line-height:1.35}
+
+/* ---------- Barre de navigation basse ---------- */
+nav.basse{
+  position:fixed;bottom:0;left:0;right:0;height:var(--haut-barre);z-index:45;
+  background:#fff;border-top:1px solid var(--ligne);display:flex;
+  box-shadow:0 -1px 6px rgba(0,0,0,.06);
+}
+nav.basse button{
+  flex:1;background:none;border:none;cursor:pointer;font:inherit;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  color:var(--gris);font-size:.72rem;font-weight:700;border-top:3px solid transparent;
+}
+nav.basse button .ico{font-size:1.35rem;line-height:1}
+nav.basse button.actif{color:var(--bleu);border-top-color:var(--bleu);background:var(--papier)}
+nav.basse button:focus-visible{outline:2px solid var(--bleu);outline-offset:-2px}
+
+/* Contenu */
+main{
+  padding:24px 24px calc(var(--haut-barre) + 40px) 76px;max-width:1200px;margin:0 auto;
+  transition:padding-left .22s ease;
+}
+@media (min-width:1000px){
+  body.nav-ouverte main{padding-left:calc(var(--larg-nav) + 40px)}
+}
+@media (max-width:999px){
+  body.nav-ouverte #voile{opacity:1;pointer-events:auto}
+}
+
+header.rubrique{display:flex;align-items:baseline;gap:14px;margin:6px 0 6px}
+header.rubrique .num{font-size:2rem;font-weight:700;color:var(--bleu)}
+header.rubrique h2{font-size:1.45rem;font-weight:700}
+p.sous-titre{color:var(--gris);margin-bottom:22px;font-size:.95rem;max-width:70ch}
+
+.carte{background:var(--carte);border:1px solid var(--ligne);border-radius:var(--r);padding:18px;margin-bottom:20px}
+.barre-outils{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+button.action{
+  background:var(--bleu);color:#fff;border:none;border-radius:var(--r);
+  padding:9px 16px;font:inherit;font-weight:700;font-size:.88rem;cursor:pointer;
+}
+button.action:hover{background:#574734}
+button.action.secondaire{background:#fff;color:var(--bleu);border:1px solid var(--bleu)}
+button.action.secondaire:hover{background:var(--bleu-clair)}
+button.suppr{background:none;border:none;color:var(--rouge);cursor:pointer;font-size:1rem;padding:4px 6px;border-radius:4px}
+button.suppr:hover{background:#F7E9E4}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--bleu);outline-offset:1px}
+button.retour{
+  background:none;border:none;color:var(--bleu);font:inherit;font-weight:700;font-size:.9rem;
+  cursor:pointer;padding:6px 0;margin-bottom:10px;display:inline-flex;align-items:center;gap:6px;
+}
+button.retour:hover{text-decoration:underline}
+
+/* ---------- Répertoire d'élèves ---------- */
+.recherche{
+  width:100%;max-width:420px;padding:10px 14px;border:1px solid var(--ligne);border-radius:99px;
+  font:inherit;font-size:.92rem;background:#fff;
+}
+.repertoire{background:#fff;border:1px solid var(--ligne);border-radius:var(--r);overflow:hidden;max-width:640px}
+.lettre{
+  font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--bleu);
+  padding:8px 18px 4px;font-size:.85rem;background:var(--papier);border-bottom:1px solid var(--ligne);
+}
+.contact{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:none;border:none;
+  border-bottom:1px solid var(--ligne);padding:11px 18px;font:inherit;cursor:pointer;
+}
+.contact:last-child{border-bottom:none}
+.contact:hover{background:#F5EFE4}
+.contact .avatar{
+  width:40px;height:40px;border-radius:50%;background:var(--bleu-clair);color:var(--bleu);
+  font-family:'Space Grotesk',sans-serif;font-weight:700;display:flex;align-items:center;justify-content:center;
+  font-size:.9rem;flex-shrink:0;
+}
+.contact .infos{flex:1;min-width:0}
+.contact .infos .nom{font-weight:700}
+.contact .infos .detail{font-size:.8rem;color:var(--gris);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.contact .fleche{color:var(--gris)}
+
+/* ---------- Fiche élève ---------- */
+.entete-eleve{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+.entete-eleve .avatar{
+  width:58px;height:58px;border-radius:50%;background:var(--bleu);color:#fff;
+  font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.25rem;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.entete-eleve h2{font-size:1.4rem}
+.entete-eleve .detail{color:var(--gris);font-size:.88rem}
+.liste-rubriques{background:#fff;border:1px solid var(--ligne);border-radius:var(--r);overflow:hidden;max-width:640px;margin-bottom:20px}
+.liste-rubriques button{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:none;border:none;
+  border-bottom:1px solid var(--ligne);padding:15px 18px;font:inherit;font-size:.98rem;cursor:pointer;
+}
+.liste-rubriques button:last-child{border-bottom:none}
+.liste-rubriques button:hover{background:#F5EFE4}
+.liste-rubriques .puce{
+  width:34px;height:34px;border-radius:var(--r);background:var(--bleu-clair);color:var(--bleu);
+  display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;
+}
+.liste-rubriques .lib{flex:1;font-weight:700}
+.liste-rubriques .apercu{font-size:.8rem;color:var(--gris);font-weight:400}
+.liste-rubriques .fleche{color:var(--gris)}
+
+/* ---------- Formulaires ---------- */
+.grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.chp{display:flex;flex-direction:column;gap:5px}
+.chp label{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--gris);font-weight:700}
+.chp input,.chp select,.chp textarea{
+  border:1px solid var(--ligne);border-radius:var(--r);padding:9px 10px;font:inherit;font-size:.92rem;background:#fff;
+}
+.chp textarea{resize:vertical;min-height:70px}
+.chp.large{grid-column:1/-1}
+h3.bloc{font-size:1.02rem;color:var(--bleu);margin:4px 0 12px}
+
+/* ---------- Tableaux ---------- */
+.defile{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem;background:#fff}
+th{
+  font-family:'Space Grotesk',sans-serif;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;
+  text-align:left;color:var(--gris);padding:8px 10px;border-bottom:2px solid var(--bleu);white-space:nowrap;
+}
+td{border-bottom:1px solid var(--ligne);padding:4px 6px;vertical-align:middle}
+tr:hover td{background:#F5EFE4}
+td input,td select,td textarea{
+  width:100%;border:1px solid transparent;background:transparent;font:inherit;font-size:.88rem;
+  padding:6px 6px;border-radius:4px;min-width:70px;
+}
+td textarea{resize:vertical;min-height:34px}
+td input:hover,td select:hover,td textarea:hover{border-color:var(--ligne)}
+td input:focus,td select:focus,td textarea:focus{border-color:var(--bleu);background:#fff}
+td.nom-fixe{font-weight:700;white-space:nowrap;padding:6px 10px}
+td.calc{font-weight:700;text-align:center;color:var(--bleu);white-space:nowrap}
+td.coche{text-align:center}
+td.coche input{width:19px;height:19px;min-width:0;accent-color:var(--bleu);cursor:pointer}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:.75rem;font-weight:700}
+.badge.ok{background:var(--ok-clair);color:var(--ok)}
+.badge.attente{background:var(--attente-clair);color:var(--attente)}
+.vide{
+  border:1px dashed var(--ligne);border-radius:var(--r);padding:28px;text-align:center;color:var(--gris);
+  background:#fff;font-size:.95rem;max-width:640px;
+}
+.onglets{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.onglets button{
+  background:#fff;border:1px solid var(--ligne);border-bottom-width:3px;border-radius:var(--r) var(--r) 0 0;
+  padding:8px 18px;font:inherit;font-weight:700;font-size:.85rem;color:var(--gris);cursor:pointer;
+}
+.onglets button.actif{color:var(--bleu);border-color:var(--bleu)}
+.stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.stat{background:#fff;border:1px solid var(--ligne);border-radius:var(--r);padding:12px 18px;min-width:130px}
+.stat .val{font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;color:var(--bleu)}
+.stat .lib{font-size:.75rem;color:var(--gris);text-transform:uppercase;letter-spacing:.05em}
+
+/* ---------- Calendrier ---------- */
+.mois{
+  font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--bleu);font-size:.95rem;
+  margin:18px 0 8px;text-transform:capitalize;
+}
+.evenement{
+  display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--ligne);
+  border-radius:var(--r);padding:10px 14px;margin-bottom:8px;max-width:760px;
+}
+.evenement .date-pastille{
+  width:52px;flex-shrink:0;text-align:center;font-family:'Space Grotesk',sans-serif;
+  background:var(--bleu-clair);color:var(--bleu);border-radius:var(--r);padding:6px 4px;
+}
+.evenement .date-pastille .jour{font-size:1.2rem;font-weight:700;line-height:1.1}
+.evenement .date-pastille .sem{font-size:.65rem;text-transform:uppercase}
+.evenement .corps{flex:1;display:grid;grid-template-columns:1fr;gap:4px;min-width:0}
+.evenement input,.evenement select{
+  border:1px solid transparent;border-radius:4px;font:inherit;font-size:.9rem;padding:4px 6px;background:transparent;width:100%;
+}
+.evenement input:hover,.evenement select:hover{border-color:var(--ligne)}
+.evenement input:focus,.evenement select:focus{border-color:var(--bleu);background:#fff}
+.evenement .meta{display:flex;gap:8px;flex-wrap:wrap}
+.evenement .meta input[type=date]{max-width:150px}
+.evenement .meta input[type=time]{max-width:100px}
+.evenement .meta select{max-width:210px}
+
+/* ---------- Vraie grille calendrier ---------- */
+.cal-tete{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.cal-nav{width:38px;height:38px;border:1px solid var(--ligne);background:#fff;border-radius:var(--r);
+  font-size:1.2rem;line-height:1;cursor:pointer;color:var(--bleu)}
+.cal-nav:hover{background:var(--bleu-clair)}
+.cal-titre{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.15rem;
+  text-transform:capitalize;min-width:180px;text-align:center}
+.cal-legende{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-size:.82rem;color:var(--encre)}
+.cal-legende .item{display:inline-flex;align-items:center;gap:6px}
+.cal-legende .pastille{width:14px;height:14px;border-radius:3px;display:inline-block}
+table.cal{table-layout:fixed;width:100%;min-width:680px;border-collapse:collapse}
+table.cal th{text-align:center;padding:6px 4px;border-bottom:2px solid var(--bleu);
+  font-family:'Space Grotesk',sans-serif;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--gris)}
+table.cal td{border:1px solid var(--ligne);vertical-align:top;height:98px;width:14.28%;padding:4px;overflow:hidden}
+td.cal-vide{background:var(--papier)}
+td.cal-jour{cursor:pointer}
+td.cal-jour:hover{background:#F5EFE4}
+td.cal-sel{outline:2px solid var(--bleu);outline-offset:-2px;background:#F5EFE4}
+.cal-num{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:.82rem;color:var(--gris);
+  width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%}
+.cal-num.cal-auj{background:var(--bleu);color:#fff}
+.cal-chip{font-size:.68rem;line-height:1.25;padding:2px 5px;border-radius:3px;margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-plus{font-size:.66rem;color:var(--gris);margin-top:2px;padding-left:2px}
+.cal-evt{border:1px solid var(--ligne);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;background:#fff}
+.cal-evt>input{width:100%;border:1px solid transparent;font:inherit;padding:5px 6px;border-radius:4px}
+.cal-evt>input:hover{border-color:var(--ligne)}
+.cal-evt>input:focus{border-color:var(--bleu);outline:none}
+.cal-evt-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.cal-evt-meta input,.cal-evt-meta select{border:1px solid var(--ligne);border-radius:4px;padding:6px;font:inherit;font-size:.85rem;background:#fff}
+.cal-chip{cursor:pointer}
+.modal-fond{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:80;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:#fff;border-radius:12px;padding:22px;max-width:440px;width:100%;box-shadow:0 12px 44px rgba(0,0,0,.28)}
+.modal .grille{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+
+@media (max-width:860px){
+  main{padding:66px 14px calc(var(--haut-barre) + 30px)}
+}
+@media (prefers-reduced-motion:reduce){
+  nav.lateral,main,#voile,#btnMenu span{transition:none}
+}
+
+/* ---------- Écran de verrouillage ---------- */
+#verrou{position:fixed;inset:0;z-index:200;background:var(--bleu);color:#fff;
+  display:flex;align-items:center;justify-content:center;padding:24px}
+#verrou.cache{display:none}
+#verrou .boite{background:#fff;color:var(--encre);border-radius:14px;padding:28px;
+  max-width:390px;width:100%;box-shadow:0 14px 48px rgba(0,0,0,.32)}
+#verrou h2{font-family:'Space Grotesk',sans-serif;color:var(--bleu);font-size:1.35rem;margin-bottom:6px}
+#verrou p{color:var(--gris);font-size:.9rem;margin-bottom:16px;line-height:1.4}
+#verrou input{width:100%;border:1px solid var(--ligne);border-radius:8px;padding:11px 12px;
+  font:inherit;font-size:1rem;margin-bottom:10px}
+#verrou input:focus{outline:2px solid var(--bleu);outline-offset:1px;border-color:var(--bleu)}
+#verrou button.action{width:100%;justify-content:center;display:flex;padding:12px}
+#verrou .err{color:var(--rouge);font-size:.85rem;margin-bottom:8px;min-height:1.1em;font-weight:700}
+#verrou .note{color:var(--gris);font-size:.76rem;margin-top:14px;line-height:1.4}
+</style>
+</head>
+<body>
+
+<div id="verrou" class="cache"></div>
+
+<button id="btnMenu" aria-label="Ouvrir ou fermer le menu des rubriques" aria-expanded="false" aria-controls="sommaire">
+  <span></span><span></span><span></span>
+</button>
+<div id="voile"></div>
+
+<nav class="lateral" id="sommaire" aria-label="Rubriques de classe">
+  <div class="titre">
+    <h1>Suivi de classe</h1>
+    <input id="nomClasse" placeholder="Nom de la classe (ex. 3ᵉB)" aria-label="Nom de la classe">
+  </div>
+  <div class="intitule">Vues de classe</div>
+  <ul id="menu"></ul>
+  <div class="pied">
+    <button id="btnExport">⬇ Exporter la sauvegarde</button>
+    <button id="btnImport">⬆ Importer une sauvegarde</button>
+    <input type="file" id="fichierImport" accept=".json" hidden>
+    <small>Les données restent dans ce navigateur. Exportez régulièrement un fichier de sauvegarde.</small>
+  </div>
+</nav>
+
+<main id="contenu"></main>
+
+<nav class="basse" aria-label="Navigation principale">
+  <button id="ongletEleves" onclick="allerOnglet('eleves')"><span class="ico">👥</span>Élèves</button>
+  <button id="ongletDocuments" onclick="allerOnglet('documents')"><span class="ico">📄</span>Suivi documents</button>
+  <button id="ongletCalendrier" onclick="allerOnglet('calendrier')"><span class="ico">📅</span>Calendrier</button>
+</nav>
+
+<script>
+/* ================= Données ================= */
+
+/* ▼▼▼ PARTAGE ENTRE UTILISATEURS — COLLEZ ICI VOTRE CONFIGURATION FIREBASE ▼▼▼
+   Laissez tel quel (champs vides) pour un usage local seulement.
+   Une fois rempli, les données sont partagées entre tous les utilisateurs. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBjdes_C0NzGFQYQbaTE5Z6aPz6BgZsbLs",
+  authDomain: "suivi-eleves-56b60.firebaseapp.com",
+  databaseURL: "https://suivi-eleves-56b60-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "suivi-eleves-56b60",
+  storageBucket: "suivi-eleves-56b60.firebasestorage.app",
+  messagingSenderId: "814813583376",
+  appId: "1:814813583376:web:a73482a0a00e25cf49d295"
+};
+/* ▲▲▲ ▲▲▲ */
+const PARTAGE_ACTIF = !!FIREBASE_CONFIG.databaseURL;
+let fbRef = null;   // référence vers la base partagée
+
+const RUBRIQUES = [
+  "Informations administratives",
+  "Conseil de classe",
+  "Orientation",
+  "Stage",
+  "Saisie des vœux",
+  "Résultats brevet blanc",
+  "Planning remise des bulletins"
+];
+const SOUS_RUBRIQUES = [
+  {lib:"Informations administratives", ico:"🗂"},
+  {lib:"Conseil de classe",            ico:"🏛"},
+  {lib:"Orientation",                  ico:"🧭"},
+  {lib:"Stage",                        ico:"💼"},
+  {lib:"Brevet blanc",                 ico:"📝"}
+];
+const DISPOSITIFS = ["PAP","PPRE","PAI","AESH"];
+const defaut = () => ({
+  nomClasse:"", eleves:[], conseil:{}, orientation:{}, stage:{}, voeux:{}, brevet:{},
+  planning:[], docs:[], docRendu:{}, agenda:[]
+});
+
+let memoire = null;   // secours si le chiffrement échoue
+let cleKey = null;    // clé de chiffrement dérivée du mot de passe (en mémoire uniquement)
+
+/* --- Chiffrement (Web Crypto) --- */
+function b64(bytes){ return btoa(String.fromCharCode(...new Uint8Array(bytes))); }
+function deB64(str){ return Uint8Array.from(atob(str), c=>c.charCodeAt(0)); }
+async function deriverCle(mdp, sel){
+  const enc = new TextEncoder();
+  const mat = await crypto.subtle.importKey("raw", enc.encode(mdp), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    {name:"PBKDF2", salt:sel, iterations:150000, hash:"SHA-256"},
+    mat, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+async function chiffrer(obj){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, cleKey, enc.encode(JSON.stringify(obj)));
+  const pack = new Uint8Array(iv.length + ct.byteLength);
+  pack.set(iv,0); pack.set(new Uint8Array(ct), iv.length);
+  return b64(pack);
+}
+async function dechiffrer(str){
+  const pack = deB64(str);
+  const iv = pack.slice(0,12), ct = pack.slice(12);
+  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv}, cleKey, ct);
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+/* --- Métadonnées (sel, check, data) : Firebase si partage actif, sinon localStorage --- */
+function localMeta(){
+  const sel=localStorage.getItem("sc_sel");
+  if(!sel) return null;
+  return {sel, check:localStorage.getItem("sc_check"), data:localStorage.getItem("sc_data")};
+}
+async function lireMeta(){
+  if(PARTAGE_ACTIF && fbRef){
+    try{ const snap = await fbRef.once("value"); return snap.val(); }
+    catch(e){ return localMeta(); }
+  }
+  return localMeta();
+}
+async function ecrireMeta(m){
+  if(PARTAGE_ACTIF && fbRef){ await fbRef.set(m); }
+  else {
+    localStorage.setItem("sc_sel", m.sel);
+    localStorage.setItem("sc_check", m.check);
+    if(m.data!=null) localStorage.setItem("sc_data", m.data);
+  }
+}
+
+/* --- Chargement / sauvegarde --- */
+async function chargerChiffre(){
+  const meta = await lireMeta();
+  if(!meta || !meta.data) return defaut();
+  return Object.assign(defaut(), await dechiffrer(meta.data));
+}
+let chaineSauve = Promise.resolve();
+function sauver(){
+  if(!cleKey) return;
+  chaineSauve = chaineSauve.then(async ()=>{
+    try{
+      const c = await chiffrer(etat);
+      if(PARTAGE_ACTIF && fbRef) await fbRef.child("data").set(c);
+      else localStorage.setItem("sc_data", c);
+    }catch(e){ memoire = etat; }
+  });
+}
+async function sauverImmediat(){
+  try{
+    const c = await chiffrer(etat);
+    if(PARTAGE_ACTIF && fbRef) await fbRef.child("data").set(c);
+    else localStorage.setItem("sc_data", c);
+  }catch(e){ memoire = etat; }
+}
+/* Synchronisation temps réel : reçoit les modifications des autres utilisateurs */
+function demarrerSync(){
+  if(!(PARTAGE_ACTIF && fbRef)) return;
+  fbRef.child("data").on("value", async snap=>{
+    const c = snap.val();
+    if(!c || !cleKey) return;
+    try{
+      const recu = Object.assign(defaut(), await dechiffrer(c));
+      etat = recu;
+      const actif = document.activeElement;
+      const enEdition = actif && /^(INPUT|TEXTAREA|SELECT)$/.test(actif.tagName);
+      if(!enEdition) rendre();
+    }catch(e){ /* clé/donnée incompatible : ignoré */ }
+  });
+}
+
+let etat = defaut();
+let ongletBas = "eleves";   // "eleves" | "documents" | "calendrier" | null (= rubrique du menu gauche)
+let rubriqueActive = null;  // index 0..6 quand une rubrique du menu gauche est ouverte
+let trimestreActif = "T1";
+let eleveOuvert = null;
+let sousOuverte = null;
+let nouveau = null;
+let filtre = "";
+let eleveRub = null;   // eleve ouvert dans une rubrique du menu gauche
+let docOuvert = null;  // document ouvert dans l'onglet Suivi documents
+let docEdit = null;    // document en cours d'édition (fenêtre)
+
+const uid = () => Math.random().toString(36).slice(2,10);
+const fiche = (coll,id) => { if(!etat[coll][id]) etat[coll][id]={}; return etat[coll][id]; };
+const eleveTri = () => [...etat.eleves].sort((a,b)=>((a.nom||"")+(a.prenom||"")).localeCompare((b.nom||"")+(b.prenom||""),"fr"));
+const echap = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const initiales = e => ((e.prenom||" ")[0]+(e.nom||" ")[0]).toUpperCase().trim()||"?";
+
+/* ================= Menu hamburger ================= */
+function basculerMenu(force){
+  const ouvert = force!==undefined ? force : !document.body.classList.contains("nav-ouverte");
+  document.body.classList.toggle("nav-ouverte", ouvert);
+  document.getElementById("btnMenu").setAttribute("aria-expanded", ouvert);
+}
+document.getElementById("btnMenu").onclick = ()=>basculerMenu();
+document.getElementById("voile").onclick = ()=>basculerMenu(false);
+document.addEventListener("keydown", ev=>{ if(ev.key==="Escape") basculerMenu(false); });
+
+/* ================= Navigation ================= */
+function rendreMenu(){
+  document.getElementById("menu").innerHTML = RUBRIQUES.map((r,i)=>`
+    <li><button class="${i===rubriqueActive?'actif':''}" onclick="allerA(${i})">
+      <span class="num">${i+1}</span><span>${r}</span></button></li>`).join("");
+  ["eleves","documents","calendrier"].forEach(t=>{
+    document.getElementById("onglet"+t[0].toUpperCase()+t.slice(1))
+      .classList.toggle("actif", ongletBas===t);
+  });
+}
+function allerA(i){
+  rubriqueActive=i; ongletBas=null; eleveOuvert=null; sousOuverte=null; nouveau=null; eleveRub=null; filtre=""; docOuvert=null; docEdit=null;
+  if(window.innerWidth<1000) basculerMenu(false);
+  rendre();
+}
+function allerOnglet(t){
+  ongletBas=t; rubriqueActive=null; eleveOuvert=null; sousOuverte=null; nouveau=null; eleveRub=null; filtre=""; docEdit=null; docOuvert=null;
+  basculerMenu(false);
+  rendre();
+}
+function ouvrirEleveRub(id){ eleveRub=id; rendre(); }
+function retourListeRub(){ eleveRub=null; rendre(); }
+function ouvrirEleve(id){ eleveOuvert=id; sousOuverte=null; rendre(); }
+function ouvrirSous(i){ sousOuverte=i; rendre(); }
+function retourFiche(){ sousOuverte=null; rendre(); }
+function retourRepertoire(){ eleveOuvert=null; sousOuverte=null; rendre(); }
+
+/* ================= Aides de rendu ================= */
+function entete(i,sousTitre){
+  return `<header class="rubrique"><span class="num">${i+1}.</span><h2>${RUBRIQUES[i]}</h2></header>`;
+}
+function enteteSimple(titre,sousTitre){
+  return `<header class="rubrique"><h2>${titre}</h2></header>`;
+}
+function siVide(){
+  return `<div class="vide">Aucun élève pour l'instant.<br><br>
+    <button class="action" onclick="allerOnglet('eleves')">Ajouter des élèves (onglet Élèves)</button></div>`;
+}
+function selection(coll,id,cle,options,rafraichir=false){
+  const v = (etat[coll][id]||{})[cle] ?? "";
+  return `<select onchange="fiche('${coll}','${id}')['${cle}']=this.value;sauver();${rafraichir?"rendre()":""}">
+    <option value=""></option>` +
+    options.map(o=>`<option ${o===v?"selected":""}>${o}</option>`).join("") + `</select>`;
+}
+function champTab(coll,id,cle,type="text",attrs=""){
+  const v = echap((etat[coll][id]||{})[cle] ?? "");
+  return `<input type="${type}" value="${v}" ${attrs}
+    onchange="fiche('${coll}','${id}')['${cle}']=this.value;sauver()">`;
+}
+function zoneTab(coll,id,cle,rows=1){
+  const v = echap((etat[coll][id]||{})[cle] ?? "");
+  return `<textarea rows="${rows}" onchange="fiche('${coll}','${id}')['${cle}']=this.value;sauver()">${v}</textarea>`;
+}
+function chp(label,html,large=false){
+  return `<div class="chp ${large?"large":""}"><label>${label}</label>${html}</div>`;
+}
+function chpColl(label,coll,id,cle,type="text",large=false){
+  const v = echap((etat[coll][id]||{})[cle] ?? "");
+  return chp(label,`<input type="${type}" value="${v}" onchange="fiche('${coll}','${id}')['${cle}']=this.value;sauver()">`,large);
+}
+function chpSel(label,coll,id,cle,options,large=false){
+  return chp(label,selection(coll,id,cle,options),large);
+}
+function chpZone(label,coll,id,cle,large=true){
+  const v = echap((etat[coll][id]||{})[cle] ?? "");
+  return chp(label,`<textarea onchange="fiche('${coll}','${id}')['${cle}']=this.value;sauver()">${v}</textarea>`,large);
+}
+
+/* ================= ONGLET BAS : Élèves (répertoire + fiche) ================= */
+function vueEleves(){
+  if(nouveau) return formNouveau();
+  if(eleveOuvert){
+    const e = etat.eleves.find(x=>x.id===eleveOuvert);
+    if(!e){ eleveOuvert=null; }
+    else return sousOuverte===null ? ficheEleve(e) : sousRubrique(e);
+  }
+  const liste = eleveTri().filter(e=>{
+    const t=(e.nom+" "+e.prenom).toLowerCase();
+    return t.includes(filtre.toLowerCase());
+  });
+  let html="", lettre="";
+  liste.forEach(e=>{
+    const l=(e.nom||"?")[0].toUpperCase();
+    if(l!==lettre){ lettre=l; html+=`<div class="lettre">${l}</div>`; }
+    html+=`<button class="contact" onclick="ouvrirEleve('${e.id}')">
+      <span class="avatar">${initiales(e)}</span>
+      <span class="infos">
+        <span class="nom">${echap(e.nom)} ${echap(e.prenom)}
+          ${(e.dispositifs||[]).map(d=>`<span class="badge attente" style="margin-left:6px;font-size:.66rem;padding:2px 7px">${echap(d)}</span>`).join("")}
+        </span><br>
+        <span class="detail">${echap(e.tel||e.email||e.responsable||"")}</span>
+      </span>
+      <span class="fleche">›</span>
+    </button>`;
+  });
+  return enteteSimple("Élèves","Le répertoire de la classe. Touchez un élève pour ouvrir sa fiche complète (administratif, conseil de classe, orientation, stage, brevet blanc).")+`
+    <div class="barre-outils">
+      <input class="recherche" id="champRecherche" placeholder="🔍 Rechercher un élève…" value="${echap(filtre)}"
+        oninput="rechercher(this.value)">
+      <button class="action" onclick="ajoutEleve()">+ Ajouter un élève</button>
+      <span style="color:var(--gris);font-size:.88rem">${etat.eleves.length} élève${etat.eleves.length>1?"s":""}</span>
+    </div>
+    ${etat.eleves.length===0
+      ? `<div class="vide">Commencez par ajouter votre premier élève.</div>`
+      : liste.length===0
+        ? `<div class="vide">Aucun élève ne correspond à « ${echap(filtre)} ».</div>`
+        : `<div class="repertoire">${html}</div>`}`;
+}
+function rechercher(val){
+  filtre = val;
+  rendre();
+  const ch = document.getElementById("champRecherche");
+  if(ch){ ch.focus(); ch.setSelectionRange(ch.value.length, ch.value.length); }
+}
+
+/* ---- Création d'un élève : formulaire complet ---- */
+function ajoutEleve(){
+  nouveau = {id:uid(), dispositifs:[]};
+  rendre();
+  setTimeout(()=>document.getElementById("nvNom")?.focus(),50);
+}
+function cocherNouveau(d,coche){
+  if(coche && !nouveau.dispositifs.includes(d)) nouveau.dispositifs.push(d);
+  if(!coche) nouveau.dispositifs = nouveau.dispositifs.filter(x=>x!==d);
+}
+function enregistrerNouveau(){
+  const nom=document.getElementById("nvNom").value.trim();
+  if(!nom){ alert("Indiquez au moins le nom de l'élève."); document.getElementById("nvNom").focus(); return; }
+  nouveau.nom=nom;
+  etat.eleves.push(nouveau); sauver();
+  eleveOuvert=nouveau.id; sousOuverte=null; nouveau=null; rendre();
+}
+function annulerNouveau(){ nouveau=null; rendre(); }
+function formNouveau(){
+  const n=nouveau;
+  const ch=(l,c,t="text",idHtml="")=>chp(l,`<input type="${t}" ${idHtml} value="${echap(n[c]??"")}"
+    onchange="nouveau['${c}']=this.value">`);
+  const cases = DISPOSITIFS.map(d=>`
+    <label style="display:inline-flex;align-items:center;gap:6px;margin-right:18px;font-size:.95rem;cursor:pointer">
+      <input type="checkbox" style="width:17px;height:17px;accent-color:var(--bleu)" ${n.dispositifs.includes(d)?"checked":""}
+        onchange="cocherNouveau('${d}',this.checked)"> ${d}
+    </label>`).join("");
+  return `
+    <button class="retour" onclick="annulerNouveau()">‹ Retour au répertoire</button>
+    <header class="rubrique"><h2>Nouvel élève</h2></header>
+    <div class="carte">
+      <h3 class="bloc">Identité</h3>
+      <div class="grille">
+        ${ch("Nom","nom","text",'id="nvNom"')} ${ch("Prénom","prenom")} ${ch("Date de naissance","naissance","date")}
+        ${chp("Régime",`<select onchange="nouveau.regime=this.value"><option value=""></option>
+          ${["Demi-pensionnaire","Externe","Interne"].map(o=>`<option ${o===n.regime?"selected":""}>${o}</option>`).join("")}</select>`)}
+      </div>
+    </div>
+    <div class="carte">
+      <h3 class="bloc">Responsable légal 1</h3>
+      <div class="grille">
+        ${ch("Nom et prénom","responsable")} ${ch("Téléphone","tel","tel")} ${ch("Courriel","email","email")}
+      </div>
+    </div>
+    <div class="carte">
+      <h3 class="bloc">Responsable légal 2</h3>
+      <div class="grille">
+        ${ch("Nom et prénom","responsable2")} ${ch("Téléphone","tel2","tel")} ${ch("Courriel","email2","email")}
+      </div>
+    </div>
+    <div class="carte">
+      <h3 class="bloc">Dispositifs d'accompagnement</h3>
+      <div style="margin-bottom:14px">${cases}</div>
+      ${chp("Informations complémentaires (aménagements, santé, situation familiale…)",
+        `<textarea onchange="nouveau.infos=this.value">${echap(n.infos??"")}</textarea>`,true)}
+    </div>
+    <div class="barre-outils">
+      <button class="action" onclick="enregistrerNouveau()">Enregistrer l'élève</button>
+      <button class="action secondaire" onclick="annulerNouveau()">Annuler</button>
+    </div>`;
+}
+function supprEleve(id){
+  const e=etat.eleves.find(x=>x.id===id);
+  if(!confirm(`Supprimer ${e?.prenom||""} ${e?.nom||"cet élève"} et toutes ses données ?`))return;
+  etat.eleves=etat.eleves.filter(x=>x.id!==id);
+  ["conseil","orientation","stage","voeux","brevet"].forEach(c=>delete etat[c][id]);
+  Object.keys(etat.docRendu||{}).forEach(docId=>{ if(etat.docRendu[docId]) delete etat.docRendu[docId][id]; });
+  etat.planning=etat.planning.filter(p=>p.eleveId!==id);
+  eleveOuvert=null; sousOuverte=null; sauver(); rendre();
+}
+
+/* ---- Fiche élève : liste des 5 rubriques ---- */
+function apercuSous(e,i){
+  const id=e.id;
+  if(i===0) return e.tel || e.responsable || "Coordonnées, régime, infos utiles";
+  if(i===1){ const d=((etat.conseil[id]||{})[trimestreActif])||{}; return d.moyenne?`Moyenne ${trimestreActif} : ${d.moyenne}/20`:"Moyennes, mentions, appréciations"; }
+  if(i===2){ const d=etat.orientation[id]||{}; return (d.voeuxProv&&d.voeuxProv.length)?d.voeuxProv.join(", "):(d.projet||"Projet et vœux provisoires"); }
+  if(i===3){ const d=etat.stage[id]||{}; return d.entreprise||"Entreprise, oral, écrit"; }
+  const m1=moyenneBB(id,"bb1");
+  return m1!==null?`Brevet blanc n°1 : ${m1.toFixed(1)}/20`:"Notes du brevet blanc";
+}
+function ficheEleve(e){
+  return `
+    <button class="retour" onclick="retourRepertoire()">‹ Retour au répertoire</button>
+    <div class="entete-eleve">
+      <span class="avatar">${initiales(e)}</span>
+      <div>
+        <h2>${echap(e.nom)} ${echap(e.prenom)}</h2>
+        <div class="detail">${echap(e.naissance?("Né(e) le "+e.naissance.split("-").reverse().join("/")):"")}
+          ${e.regime?(" · "+echap(e.regime)):""}</div>
+        ${(e.dispositifs||[]).length?`<div style="margin-top:6px">${e.dispositifs.map(d=>
+          `<span class="badge attente" style="margin-right:6px">${echap(d)}</span>`).join("")}</div>`:""}
+      </div>
+    </div>
+    <div class="liste-rubriques">
+      ${SOUS_RUBRIQUES.map((s,i)=>`
+        <button onclick="ouvrirSous(${i})">
+          <span class="puce">${s.ico}</span>
+          <span class="lib">${s.lib}<br><span class="apercu">${echap(apercuSous(e,i))}</span></span>
+          <span class="fleche">›</span>
+        </button>`).join("")}
+    </div>
+    <button class="action secondaire" style="border-color:var(--rouge);color:var(--rouge)"
+      onclick="supprEleve('${e.id}')">Supprimer cet élève</button>`;
+}
+
+/* ---- Sous-rubriques de la fiche élève ---- */
+function sousRubrique(e){
+  const tete = `
+    <button class="retour" onclick="retourFiche()">‹ ${echap(e.nom)} ${echap(e.prenom)}</button>
+    <header class="rubrique"><h2>${SOUS_RUBRIQUES[sousOuverte].lib}</h2></header>`;
+  return tete + contenuSous(sousOuverte, e);
+}
+function contenuSous(sousOuverte, e){
+  const id=e.id;
+  if(sousOuverte===0){ /* Informations administratives */
+    const ch=(l,c,t="text")=>chp(l,`<input type="${t}" value="${echap(e[c]??"")}"
+      onchange="majEleve('${id}','${c}',this.value)">`);
+    const disp = e.dispositifs||[];
+    const cases = DISPOSITIFS.map(d=>`
+      <label style="display:inline-flex;align-items:center;gap:6px;margin-right:18px;font-size:.95rem;
+        font-weight:${disp.includes(d)?"700":"400"};cursor:pointer">
+        <input type="checkbox" style="width:17px;height:17px;accent-color:var(--bleu)" ${disp.includes(d)?"checked":""}
+          onchange="majDispositif('${id}','${d}',this.checked)"> ${d}
+      </label>`).join("");
+    return `
+    <div class="carte">
+      <h3 class="bloc">Identité</h3>
+      <div class="grille">
+        ${ch("Nom","nom")} ${ch("Prénom","prenom")} ${ch("Date de naissance","naissance","date")}
+        ${chp("Régime",`<select onchange="majEleve('${id}','regime',this.value)"><option value=""></option>
+          ${["Demi-pensionnaire","Externe","Interne"].map(o=>`<option ${o===e.regime?"selected":""}>${o}</option>`).join("")}</select>`)}
+      </div>
+    </div>
+    <div class="carte">
+      <h3 class="bloc">Responsable légal 1</h3>
+      <div class="grille">
+        ${ch("Nom et prénom","responsable")} ${ch("Téléphone","tel","tel")} ${ch("Courriel","email","email")}
+      </div>
+    </div>
+    <div class="carte">
+      <h3 class="bloc">Responsable légal 2</h3>
+      <div class="grille">
+        ${ch("Nom et prénom","responsable2")} ${ch("Téléphone","tel2","tel")} ${ch("Courriel","email2","email")}
+      </div>
+    </div>
+    <div class="carte">
+      <h3 class="bloc">Dispositifs d'accompagnement</h3>
+      <div style="margin-bottom:14px">${cases}</div>
+      ${chp("Informations complémentaires (aménagements, santé, situation familiale…)",`<textarea
+        onchange="majEleve('${id}','infos',this.value)">${echap(e.infos??"")}</textarea>`,true)}
+    </div>`;
+  }
+
+  if(sousOuverte===1){ /* Conseil de classe */
+    return ["T1","T2","T3"].map(T=>{
+      if(!etat.conseil[id])etat.conseil[id]={};
+      if(!etat.conseil[id][T])etat.conseil[id][T]={};
+      const d=etat.conseil[id][T];
+      const mg=d.misesEnGarde||[];
+      const casesMG=["Travail","Comportement","Assiduité"].map(v=>`
+        <label style="display:inline-flex;align-items:center;gap:8px;margin-right:20px;font-size:.95rem;
+          font-weight:${mg.includes(v)?"700":"400"};cursor:pointer">
+          <input type="checkbox" style="width:17px;height:17px;accent-color:var(--bleu)" ${mg.includes(v)?"checked":""}
+            onchange="majMiseEnGarde('${id}','${T}','${v}',this.checked)"> ${v}
+        </label>`).join("");
+      const raccourcis = (T==="T1") ? "" : `
+        <div class="barre-outils" style="margin-top:14px">
+          <button class="action secondaire" onclick="allerFicheEleve('${id}',2)">🧭 Fiche orientation</button>
+          <button class="action secondaire" onclick="allerFicheEleve('${id}',4)">📝 Fiche brevet blanc</button>
+        </div>`;
+      return `<div class="carte"><h3 class="bloc">Trimestre ${T[1]}</h3>
+        <div class="grille">
+          ${chp("Moyenne /20",`<input type="number" step="0.1" min="0" max="20" value="${echap(d.moyenne??"")}"
+            onchange="etat.conseil['${id}']['${T}'].moyenne=this.value;sauver()">`)}
+          ${chp("Mention",`<select onchange="etat.conseil['${id}']['${T}'].mention=this.value;sauver()">
+            <option value=""></option>
+            ${["Félicitations","Compliments","Encouragements"]
+              .map(o=>`<option ${o===d.mention?"selected":""}>${o}</option>`).join("")}</select>`)}
+        </div>
+        <div class="chp" style="margin-top:12px"><label>Mises en garde</label>
+          <div style="margin-top:6px">${casesMG}</div></div>
+        <div class="chp large" style="margin-top:12px"><label>Appréciation</label>
+          <textarea onchange="etat.conseil['${id}']['${T}'].appreciation=this.value;sauver()">${echap(d.appreciation??"")}</textarea></div>
+        ${raccourcis}
+      </div>`;}).join("");
+  }
+
+  if(sousOuverte===2){ /* Orientation */
+    const o = etat.orientation[id]||{};
+    return `
+    <div class="carte">
+      <h3 class="bloc">Projet et rendez-vous d'orientation</h3>
+      <div class="grille">
+        <div class="chp large"><label>Projet d'orientation (métier, filière, souhaits de l'élève…)</label>
+          <textarea onchange="fiche('orientation','${id}').projet=this.value;sauver()">${echap(o.projet??"")}</textarea></div>
+        <div class="chp large"><label>Rendez-vous d'orientation</label>
+          <textarea onchange="fiche('orientation','${id}').rdv=this.value;sauver()">${echap(o.rdv??"")}</textarea></div>
+        <div class="chp large"><label>Mini-stage</label>
+          <textarea onchange="fiche('orientation','${id}').miniStage=this.value;sauver()">${echap(o.miniStage??"")}</textarea></div>
+      </div>
+    </div>
+    ${blocVoeux(id,o,"Vœux provisoires","voeuxProv","avisProv","suiviProv","valideProv")}
+    ${blocVoeux(id,o,"Vœux définitifs","voeuxDef","avisDef","suiviDef","valideDef")}
+    <div class="carte">
+      <h3 class="bloc">Vœux établissement</h3>
+      <div class="chp large"><textarea placeholder="Établissement(s) demandé(s)…"
+        onchange="fiche('orientation','${id}').voeuxEtab=this.value;sauver()">${echap(o.voeuxEtab??"")}</textarea></div>
+    </div>`;
+  }
+
+  if(sousOuverte===3){ /* Stage */
+    return `
+    <div class="carte">
+      <h3 class="bloc">Stage</h3>
+      <div class="grille">
+        ${chpColl("Entreprise / organisme","stage",id,"entreprise")}
+        ${chpColl("Tuteur","stage",id,"tuteur")}
+        ${chpColl("Numéro du tuteur","stage",id,"tuteurTel","tel")}
+        ${chpZone("Remarques","stage",id,"remarques")}
+      </div>
+    </div>
+    <div class="carte">
+      <h3 class="bloc">Oral</h3>
+      <div class="grille">
+        ${chpColl("Note","stage",id,"oralNote")}
+        ${chpZone("Appréciation","stage",id,"oralAppreciation")}
+      </div>
+    </div>
+    <div class="carte">
+      <h3 class="bloc">Écrit</h3>
+      <div class="grille">
+        ${chpColl("Note","stage",id,"ecritNote")}
+        ${chpZone("Appréciation","stage",id,"ecritAppreciation")}
+      </div>
+    </div>`;
+  }
+
+  /* Brevet blanc */
+  const blocBB = (bb,titre) => {
+    const dd = etat.brevet[id]||{};
+    const moy = moyenneBB(id,bb);
+    return `
+    <div class="carte">
+      <h3 class="bloc">${titre}</h3>
+      <div class="grille">
+        ${MATIERES_BB.map(m=>chp(`${m.lib} /20`,`<input type="number" min="0" max="20" step="0.5"
+          value="${echap(dd[bb+'_'+m.cle]??"")}"
+          onchange="fiche('brevet','${id}')['${bb}_${m.cle}']=this.value;sauver();rendre()">`)).join("")}
+        ${chp("Moyenne /20 (auto)",`<input type="text" readonly value="${moy!==null?moy.toFixed(2):""}"
+          style="font-weight:700;color:var(--bleu);background:var(--bleu-clair);border-color:var(--bleu)">`)}
+      </div>
+    </div>`;
+  };
+  return blocBB("bb1","Brevet blanc n°1") + blocBB("bb2","Brevet blanc n°2");
+}
+function majEleve(id,cle,val){ const e=etat.eleves.find(x=>x.id===id); if(e){e[cle]=val;sauver();} }
+function allerFicheEleve(id,sousIdx){
+  ongletBas="eleves"; rubriqueActive=null; eleveRub=null; nouveau=null; filtre="";
+  eleveOuvert=id; sousOuverte=sousIdx;
+  rendre();
+}
+function majMiseEnGarde(id,T,val,coche){
+  if(!etat.conseil[id])etat.conseil[id]={};
+  if(!etat.conseil[id][T])etat.conseil[id][T]={};
+  const d=etat.conseil[id][T];
+  d.misesEnGarde = d.misesEnGarde||[];
+  if(coche && !d.misesEnGarde.includes(val)) d.misesEnGarde.push(val);
+  if(!coche) d.misesEnGarde = d.misesEnGarde.filter(x=>x!==val);
+  sauver(); rendre();
+}
+function majVoeuListe(id,cle,val,coche){
+  const o=fiche("orientation",id);
+  o[cle] = o[cle]||[];
+  if(coche && !o[cle].includes(val)) o[cle].push(val);
+  if(!coche) o[cle] = o[cle].filter(x=>x!==val);
+  sauver(); rendre();
+}
+function blocVoeux(id,o,titre,cleV,cleAvis,cleSuivi,cleValide){
+  const sel = o[cleV]||[];
+  const cases = ["2de GT","2de Pro","CAP"].map(v=>`
+    <label style="display:inline-flex;align-items:center;gap:8px;margin-right:22px;font-size:1rem;
+      font-weight:${sel.includes(v)?"700":"400"};cursor:pointer">
+      <input type="checkbox" style="width:18px;height:18px;accent-color:var(--bleu)" ${sel.includes(v)?"checked":""}
+        onchange="majVoeuListe('${id}','${cleV}','${v}',this.checked)"> ${v}
+    </label>`).join("");
+  const valide = !!o[cleValide];
+  return `
+    <div class="carte">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <h3 class="bloc" style="margin:0;flex:1">${titre}</h3>
+        <input type="checkbox" title="Validé" aria-label="${titre} validés"
+          style="width:20px;height:20px;accent-color:var(--bleu);cursor:pointer" ${valide?"checked":""}
+          onchange="fiche('orientation','${id}')['${cleValide}']=this.checked;sauver();rendre()">
+      </div>
+      <div style="margin-bottom:14px">${cases}</div>
+      <div class="chp"><label>Avis du conseil de classe</label>
+        <select onchange="fiche('orientation','${id}')['${cleAvis}']=this.value;sauver()">
+          <option value=""></option>
+          ${["Favorable","Réservé","Défavorable","À approfondir"].map(a=>`<option ${a===o[cleAvis]?"selected":""}>${a}</option>`).join("")}
+        </select>
+      </div>
+      <div class="chp large" style="margin-top:12px"><label>Suivi / remarques</label>
+        <textarea onchange="fiche('orientation','${id}')['${cleSuivi}']=this.value;sauver()">${echap(o[cleSuivi]??"")}</textarea></div>
+    </div>`;
+}
+function majDispositif(id,d,coche){
+  const e=etat.eleves.find(x=>x.id===id); if(!e)return;
+  e.dispositifs = e.dispositifs||[];
+  if(coche && !e.dispositifs.includes(d)) e.dispositifs.push(d);
+  if(!coche) e.dispositifs = e.dispositifs.filter(x=>x!==d);
+  sauver(); rendre();
+}
+
+/* ================= ONGLET BAS : Suivi documents ================= */
+function docRendu(docId,eleveId){ return !!((etat.docRendu[docId]||{})[eleveId]); }
+function majDocRendu(docId,eleveId,coche){
+  if(!etat.docRendu[docId]) etat.docRendu[docId]={};
+  etat.docRendu[docId][eleveId]=coche; sauver(); rendre();
+}
+function ajoutDoc(){ const doc={id:uid(),nom:"",dateLimite:""}; etat.docs.push(doc); sauver(); ouvrirDocModal(doc.id); }
+function ouvrirDoc(id){ docOuvert=id; rendre(); }
+function retourDocs(){ docOuvert=null; rendre(); }
+function ouvrirDocModal(id){ docEdit=id; rendre(); setTimeout(()=>document.getElementById("docNom")?.focus(),50); }
+function fermerDocModal(){ docEdit=null; rendre(); }
+function majDoc(id,cle,val){ const doc=etat.docs.find(x=>x.id===id); if(doc){doc[cle]=val;sauver();rendre();} }
+function supprDoc(id){
+  etat.docs=etat.docs.filter(x=>x.id!==id); delete etat.docRendu[id];
+  docEdit=null; if(docOuvert===id)docOuvert=null; sauver(); rendre();
+}
+function ficheDoc(doc){
+  const dl = doc.dateLimite ? doc.dateLimite.split("-").reverse().join("/") : "—";
+  const rendusTot = eleveTri().filter(e=>docRendu(doc.id,e.id)).length;
+  const archive = etat.eleves.length>0 && rendusTot===etat.eleves.length;
+  const tete = `
+    <button class="retour" onclick="retourDocs()">‹ Retour aux documents</button>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+      <h2 style="font-size:1.4rem;font-weight:700">${echap(doc.nom||"Document")}</h2>
+      ${archive?`<span class="badge ok">Archivé</span>`:""}
+      <button class="action secondaire" onclick="ouvrirDocModal('${doc.id}')">Modifier</button>
+    </div>
+    <p class="sous-titre">Date limite de rendu : ${dl}</p>`;
+  if(etat.eleves.length===0) return tete+siVide();
+  const rendus = eleveTri().filter(e=>docRendu(doc.id,e.id)).length;
+  const lignes = eleveTri().map(e=>`
+    <tr>
+      <td class="nom-fixe">${echap(e.nom)} ${echap(e.prenom)}</td>
+      <td class="coche"><input type="checkbox" ${docRendu(doc.id,e.id)?"checked":""} aria-label="Rendu"
+        onchange="majDocRendu('${doc.id}','${e.id}',this.checked)"></td>
+    </tr>`).join("");
+  return tete+`
+    <div class="stats"><div class="stat"><div class="val">${rendus}/${etat.eleves.length}</div><div class="lib">Rendus</div></div></div>
+    <div class="carte defile"><table>
+      <thead><tr><th>Élève</th><th>Rendu / validé</th></tr></thead>
+      <tbody>${lignes}</tbody></table></div>`;
+}
+function vueDocuments(){
+  const d = docEdit ? etat.docs.find(x=>x.id===docEdit) : null;
+  const modal = d ? `
+    <div class="modal-fond" onclick="fermerDocModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <h3 class="bloc" style="margin-top:0">Document</h3>
+        <div class="chp" style="margin-bottom:12px"><label>Nom du document</label>
+          <input id="docNom" value="${echap(d.nom??"")}" placeholder="Ex. Fiche de dialogue, convention de stage…"
+            onchange="majDoc('${d.id}','nom',this.value)"></div>
+        <div class="chp"><label>Date limite de rendu</label>
+          <input type="date" value="${echap(d.dateLimite??"")}" onchange="majDoc('${d.id}','dateLimite',this.value)"></div>
+        <div class="barre-outils" style="margin-top:18px;justify-content:space-between">
+          <button class="suppr" style="font-size:.9rem" onclick="supprDoc('${d.id}')">🗑 Supprimer</button>
+          <button class="action" onclick="fermerDocModal()">Fermer</button>
+        </div>
+      </div>
+    </div>` : "";
+
+  if(docOuvert){
+    const doc = etat.docs.find(x=>x.id===docOuvert);
+    if(!doc){ docOuvert=null; }
+    else return ficheDoc(doc)+modal;
+  }
+
+  const docsTries = etat.docs.map(doc=>{
+    const rendus = eleveTri().filter(e=>docRendu(doc.id,e.id)).length;
+    const total = etat.eleves.length;
+    const archive = total>0 && rendus===total;
+    return {doc,rendus,total,archive};
+  }).sort((a,b)=>(a.archive?1:0)-(b.archive?1:0));   // documents archivés en bas
+  const liste = docsTries.map(({doc,rendus,total,archive})=>{
+    const dl = doc.dateLimite ? `Limite : ${doc.dateLimite.split("-").reverse().join("/")}` : "Sans date limite";
+    return `<button class="contact" onclick="ouvrirDoc('${doc.id}')" style="${archive?'opacity:.62':''}">
+      <span class="avatar">${archive?"✅":"📄"}</span>
+      <span class="infos"><span class="nom">${echap(doc.nom||"(sans nom)")}
+        ${archive
+          ? `<span class="badge ok" style="margin-left:6px">Archivé</span>`
+          : `<span class="badge attente" style="margin-left:6px">${rendus}/${total}</span>`}</span><br>
+        <span class="detail">${archive?`Tous les documents rendus (${rendus}/${total})`:echap(dl)}</span></span>
+      <span class="fleche">›</span>
+    </button>`;
+  }).join("");
+
+  return enteteSimple("Suivi documents","Ajoutez les documents à collecter (nom + date limite). Ouvrez un document pour cocher les élèves qui l'ont rendu.")+`
+    <div class="barre-outils">
+      <button class="action" onclick="ajoutDoc()">+ Ajouter un document</button>
+      ${etat.docs.length?`<span style="color:var(--gris);font-size:.88rem">${etat.docs.length} document${etat.docs.length>1?"s":""}</span>`:""}
+    </div>
+    ${etat.docs.length===0
+      ? `<div class="vide">Aucun document. Ajoutez-en un (ex. convention de stage, fiche de dialogue…).</div>`
+      : `<div class="repertoire">${liste}</div>`}
+    ${modal}`;
+}
+
+/* ================= ONGLET BAS : Calendrier ================= */
+const MOIS = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+const JOURS_LONG = ["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+const CATEGORIES = [
+  {cle:"RDV parents", fond:"#FEF3C7", txt:"#92700A", bord:"#EAB308"},
+  {cle:"Réunion",     fond:"#DCFCE7", txt:"#166534", bord:"#16A34A"},
+  {cle:"Examen",      fond:"#FEE2E2", txt:"#B91C1C", bord:"#DC2626"},
+  {cle:"Sortie",      fond:"#DBEAFE", txt:"#1D4ED8", bord:"#2563EB"}
+];
+const catInfo = c => CATEGORIES.find(x=>x.cle===c) || {fond:"#EEEEEE",txt:"#555555",bord:"#BBBBBB"};
+function isoDate(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function jourLong(iso){ if(!iso) return ""; const d=new Date(iso+"T00:00:00"); return `${JOURS_LONG[d.getDay()]} ${d.getDate()} ${MOIS[d.getMonth()]} ${d.getFullYear()}`; }
+const _auj = new Date();
+let calAnnee = _auj.getFullYear(), calMois = _auj.getMonth();
+let evtEdit = null;   // id de l'événement en cours d'édition (fenêtre)
+function calPrev(){ calMois--; if(calMois<0){calMois=11;calAnnee--;} rendre(); }
+function calNext(){ calMois++; if(calMois>11){calMois=0;calAnnee++;} rendre(); }
+function calAujourdhui(){ const t=new Date(); calAnnee=t.getFullYear(); calMois=t.getMonth(); rendre(); }
+function nouvelEvt(){ const e={id:uid(), date:isoDate(new Date())}; etat.agenda.push(e); sauver(); ouvrirModalEvt(e.id); }
+function nouvelEvtDate(iso){ const e={id:uid(), date:iso}; etat.agenda.push(e); sauver(); ouvrirModalEvt(e.id); }
+function ouvrirModalEvt(id){ evtEdit=id; rendre(); setTimeout(()=>document.getElementById("modalNom")?.focus(),50); }
+function fermerModalEvt(){ evtEdit=null; rendre(); }
+function vueCalendrier(){
+  const nbJours = new Date(calAnnee, calMois+1, 0).getDate();
+  let debut = new Date(calAnnee, calMois, 1).getDay();   // 0=dim..6=sam
+  debut = (debut+6)%7;                                    // lundi en premier
+  const cells=[];
+  for(let i=0;i<debut;i++) cells.push(null);
+  for(let j=1;j<=nbJours;j++) cells.push(j);
+  while(cells.length%7!==0) cells.push(null);
+  const evtsDuJour = iso => etat.agenda.filter(e=>e.date===iso)
+    .sort((a,b)=>(a.heure||"").localeCompare(b.heure||""));
+  const ajd = isoDate(new Date());
+  let grille="";
+  for(let i=0;i<cells.length;i+=7){
+    grille += "<tr>" + cells.slice(i,i+7).map(j=>{
+      if(j===null) return `<td class="cal-vide"></td>`;
+      const iso = `${calAnnee}-${String(calMois+1).padStart(2,"0")}-${String(j).padStart(2,"0")}`;
+      const evts = evtsDuJour(iso);
+      const chips = evts.slice(0,3).map(e=>{ const c=catInfo(e.categorie);
+        return `<div class="cal-chip" style="background:${c.fond};color:${c.txt};border-left:3px solid ${c.bord}" onclick="event.stopPropagation();ouvrirModalEvt('${e.id}')">${e.heure?`<b>${echap(e.heure)}</b> `:""}${echap(e.titre||"(sans nom)")}</div>`;
+      }).join("");
+      const plus = evts.length>3?`<div class="cal-plus">+${evts.length-3} autre(s)</div>`:"";
+      return `<td class="cal-jour" onclick="nouvelEvtDate('${iso}')">
+        <div class="cal-num ${iso===ajd?'cal-auj':''}">${j}</div>${chips}${plus}</td>`;
+    }).join("") + "</tr>";
+  }
+  const ev = evtEdit ? etat.agenda.find(x=>x.id===evtEdit) : null;
+  const modal = ev ? `
+    <div class="modal-fond" onclick="fermerModalEvt()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <h3 class="bloc" style="margin-top:0">Événement</h3>
+        <div class="chp" style="margin-bottom:12px"><label>Nom</label>
+          <input id="modalNom" value="${echap(ev.titre??"")}" placeholder="Nom de l'événement"
+            onchange="majEvt('${ev.id}','titre',this.value)"></div>
+        <div class="grille">
+          <div class="chp"><label>Date</label>
+            <input type="date" value="${echap(ev.date??"")}" onchange="majEvt('${ev.id}','date',this.value)"></div>
+          <div class="chp"><label>Heure</label>
+            <input type="time" value="${echap(ev.heure??"")}" onchange="majEvt('${ev.id}','heure',this.value)"></div>
+          <div class="chp"><label>Catégorie</label>
+            <select onchange="majEvt('${ev.id}','categorie',this.value)">
+              <option value=""></option>
+              ${CATEGORIES.map(x=>`<option ${x.cle===ev.categorie?"selected":""}>${x.cle}</option>`).join("")}
+            </select></div>
+        </div>
+        <div class="chp large" style="margin-top:12px"><label>Informations complémentaires</label>
+          <textarea placeholder="Salle, participants, remarques…"
+            onchange="majEvt('${ev.id}','infos',this.value)">${echap(ev.infos??"")}</textarea></div>
+        <div class="barre-outils" style="margin-top:18px;justify-content:space-between">
+          <button class="suppr" style="font-size:.9rem" onclick="supprEvt('${ev.id}')">🗑 Supprimer</button>
+          <button class="action" onclick="fermerModalEvt()">Fermer</button>
+        </div>
+      </div>
+    </div>` : "";
+  return `
+    <div style="display:flex;align-items:center;gap:14px;margin:6px 0 4px;flex-wrap:wrap">
+      <h2 style="font-size:1.45rem;font-weight:700">Calendrier</h2>
+      <button class="action" onclick="nouvelEvt()">+ Événement</button>
+    </div>
+    <div class="cal-tete">
+      <button class="cal-nav" onclick="calPrev()" aria-label="Mois précédent">‹</button>
+      <div class="cal-titre">${MOIS[calMois]} ${calAnnee}</div>
+      <button class="cal-nav" onclick="calNext()" aria-label="Mois suivant">›</button>
+      <button class="action secondaire" onclick="calAujourdhui()">Aujourd'hui</button>
+    </div>
+    <div class="cal-legende">
+      ${CATEGORIES.map(c=>`<span class="item"><span class="pastille" style="background:${c.bord}"></span>${c.cle}</span>`).join("")}
+    </div>
+    <div class="carte defile" style="padding:8px"><table class="cal">
+      <thead><tr>${["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].map(j=>`<th>${j}</th>`).join("")}</tr></thead>
+      <tbody>${grille}</tbody></table></div>
+    ${modal}`;
+}
+function majEvt(id,cle,val){ const ev=etat.agenda.find(x=>x.id===id); if(ev){ev[cle]=val;sauver(); rendre();} }
+function supprEvt(id){ etat.agenda=etat.agenda.filter(x=>x.id!==id); evtEdit=null; sauver(); rendre(); }
+
+/* ================= MENU GAUCHE : vues de classe (données de la rubrique uniquement) ================= */
+
+/* 1 — Informations administratives (tableau de classe) */
+function r1(){
+  if(etat.eleves.length===0) return entete(0,"")+siVide();
+  const lignes = eleveTri().map(e=>`
+    <tr>
+      <td class="nom-fixe">${echap(e.nom)} ${echap(e.prenom)}</td>
+      <td><input type="date" value="${echap(e.naissance??"")}" onchange="majEleve('${e.id}','naissance',this.value)"></td>
+      <td><select onchange="majEleve('${e.id}','regime',this.value)">
+        <option value=""></option>
+        ${["Demi-pensionnaire","Externe","Interne"].map(o=>`<option ${o===e.regime?"selected":""}>${o}</option>`).join("")}
+      </select></td>
+      <td><input value="${echap(e.responsable??"")}" onchange="majEleve('${e.id}','responsable',this.value)"></td>
+      <td><input type="tel" value="${echap(e.tel??"")}" onchange="majEleve('${e.id}','tel',this.value)"></td>
+      <td><input value="${echap(e.responsable2??"")}" onchange="majEleve('${e.id}','responsable2',this.value)"></td>
+      <td><input type="tel" value="${echap(e.tel2??"")}" onchange="majEleve('${e.id}','tel2',this.value)"></td>
+      <td style="white-space:nowrap">${(e.dispositifs||[]).map(d=>`<span class="badge attente" style="margin-right:4px">${echap(d)}</span>`).join("")||""}</td>
+      <td style="min-width:180px"><input value="${echap(e.infos??"")}" onchange="majEleve('${e.id}','infos',this.value)"></td>
+    </tr>`).join("");
+  return entete(0,"Vue de classe des données administratives. Les dispositifs (PAP, PPRE, PAI, AESH) se modifient dans la fiche de chaque élève (onglet Élèves).")+`
+    <div class="carte defile"><table>
+      <thead><tr><th>Élève</th><th>Né(e) le</th><th>Régime</th><th>Responsable 1</th><th>Tél. 1</th><th>Responsable 2</th><th>Tél. 2</th><th>Dispositifs</th><th>Infos compl.</th></tr></thead>
+      <tbody>${lignes}</tbody></table></div>`;
+}
+
+/* 2 — Conseil de classe */
+function r2(){
+  if(etat.eleves.length===0) return entete(1,"")+siVide();
+  const T=trimestreActif;
+  const lignes = eleveTri().map(e=>{
+    const id=e.id;
+    if(!etat.conseil[id])etat.conseil[id]={};
+    if(!etat.conseil[id][T])etat.conseil[id][T]={};
+    const d=etat.conseil[id][T];
+    return `<tr>
+      <td class="nom-fixe">${echap(e.nom)} ${echap(e.prenom)}</td>
+      <td><input type="number" step="0.1" min="0" max="20" style="max-width:80px" value="${echap(d.moyenne??"")}"
+        onchange="etat.conseil['${id}']['${T}'].moyenne=this.value;sauver()"></td>
+      <td><select onchange="etat.conseil['${id}']['${T}'].mention=this.value;sauver()">
+        <option value=""></option>
+        ${["Félicitations","Compliments","Encouragements","Sans mention","Mise en garde travail","Mise en garde comportement"]
+          .map(o=>`<option ${o===d.mention?"selected":""}>${o}</option>`).join("")}
+      </select></td>
+      <td style="min-width:280px"><textarea rows="2" placeholder="Appréciation générale…"
+        onchange="etat.conseil['${id}']['${T}'].appreciation=this.value;sauver()">${echap(d.appreciation??"")}</textarea></td>
+    </tr>`;}).join("");
+  return entete(1,"Moyennes, mentions et appréciations du trimestre sélectionné, pour toute la classe.")+`
+    <div class="onglets">${["T1","T2","T3"].map(t=>`
+      <button class="${t===trimestreActif?'actif':''}" onclick="trimestreActif='${t}';rendre()">Trimestre ${t[1]}</button>`).join("")}
+    </div>
+    <div class="carte defile"><table>
+      <thead><tr><th>Élève</th><th>Moyenne /20</th><th>Mention</th><th>Appréciation</th></tr></thead>
+      <tbody>${lignes}</tbody></table></div>`;
+}
+
+/* 3 — Orientation */
+function r3(){
+  if(etat.eleves.length===0) return entete(2,"")+siVide();
+  const lignes = eleveTri().map(e=>`
+    <tr>
+      <td class="nom-fixe">${echap(e.nom)} ${echap(e.prenom)}</td>
+      <td>${selection("orientation",e.id,"intention",["2de générale et technologique","2de professionnelle","CAP","Apprentissage","Redoublement demandé","Indécis"])}</td>
+      <td style="min-width:180px">${champTab("orientation",e.id,"projet","text",'placeholder="Métier ou filière envisagés"')}</td>
+      <td><input type="date" value="${echap((etat.orientation[e.id]||{}).entretien??"")}"
+        onchange="fiche('orientation','${e.id}').entretien=this.value;sauver()"></td>
+      <td>${selection("orientation",e.id,"avisConseil",["Favorable","Réservé","Défavorable"])}</td>
+      <td style="min-width:220px">${zoneTab("orientation",e.id,"suivi",1)}</td>
+    </tr>`).join("");
+  return entete(2,"Le projet d'orientation de chaque élève : intention, entretiens menés et avis du conseil de classe.")+`
+    <div class="carte defile"><table>
+      <thead><tr><th>Élève</th><th>Intention</th><th>Projet</th><th>Entretien le</th><th>Avis conseil</th><th>Suivi / remarques</th></tr></thead>
+      <tbody>${lignes}</tbody></table></div>`;
+}
+
+/* 4 — Stage */
+function r4(){
+  if(etat.eleves.length===0) return entete(3,"")+siVide();
+  const s=etat.stage;
+  const nb = c => eleveTri().filter(e=>(s[e.id]||{})[c]==="Oui").length;
+  const lignes = eleveTri().map(e=>`
+    <tr>
+      <td class="nom-fixe">${echap(e.nom)} ${echap(e.prenom)}</td>
+      <td style="min-width:170px">${champTab("stage",e.id,"entreprise","text",'placeholder="Entreprise / organisme"')}</td>
+      <td>${champTab("stage",e.id,"tuteur")}</td>
+      <td><input type="date" value="${echap((s[e.id]||{}).debut??"")}" onchange="fiche('stage','${e.id}').debut=this.value;sauver()"></td>
+      <td><input type="date" value="${echap((s[e.id]||{}).fin??"")}" onchange="fiche('stage','${e.id}').fin=this.value;sauver()"></td>
+      <td>${selection("stage",e.id,"convention",["Oui","Non"],true)}</td>
+      <td>${selection("stage",e.id,"rapport",["Oui","Non"],true)}</td>
+      <td><input type="number" step="0.5" min="0" max="20" style="max-width:75px" value="${echap((s[e.id]||{}).note??"")}"
+        onchange="fiche('stage','${e.id}').note=this.value;sauver()"></td>
+    </tr>`).join("");
+  return entete(3,"Séquence d'observation en milieu professionnel : lieu, dates, convention et restitution.")+`
+    <div class="stats">
+      <div class="stat"><div class="val">${nb("convention")}/${etat.eleves.length}</div><div class="lib">Conventions signées</div></div>
+      <div class="stat"><div class="val">${nb("rapport")}/${etat.eleves.length}</div><div class="lib">Rapports rendus</div></div>
+    </div>
+    <div class="carte defile"><table>
+      <thead><tr><th>Élève</th><th>Lieu de stage</th><th>Tuteur</th><th>Début</th><th>Fin</th><th>Convention</th><th>Rapport</th><th>Note /20</th></tr></thead>
+      <tbody>${lignes}</tbody></table></div>`;
+}
+
+/* 5 — Saisie des vœux */
+function r5(){
+  if(etat.eleves.length===0) return entete(4,"")+siVide();
+  const v=etat.voeux;
+  const valides = eleveTri().filter(e=>(v[e.id]||{}).statut==="Validé par la famille").length;
+  const lignes = eleveTri().map(e=>{
+    const st=(v[e.id]||{}).statut||"";
+    const badge = st==="Validé par la famille" ? `<span class="badge ok">Validé</span>`
+      : st ? `<span class="badge attente">${echap(st)}</span>` : "";
+    return `<tr>
+      <td class="nom-fixe">${echap(e.nom)} ${echap(e.prenom)}<br>${badge}</td>
+      <td style="min-width:200px">${champTab("voeux",e.id,"v1","text",'placeholder="Établissement — formation"')}</td>
+      <td style="min-width:200px">${champTab("voeux",e.id,"v2")}</td>
+      <td style="min-width:200px">${champTab("voeux",e.id,"v3")}</td>
+      <td>${selection("voeux",e.id,"statut",["À saisir","Saisi — en attente","Validé par la famille"],true)}</td>
+      <td style="min-width:180px">${zoneTab("voeux",e.id,"remarque",1)}</td>
+    </tr>`;}).join("");
+  return entete(4,"Vœux d'affectation (Affelnet) : jusqu'à trois vœux par élève et l'état de la saisie.")+`
+    <div class="stats">
+      <div class="stat"><div class="val">${valides}/${etat.eleves.length}</div><div class="lib">Dossiers validés</div></div>
+    </div>
+    <div class="carte defile"><table>
+      <thead><tr><th>Élève</th><th>Vœu 1</th><th>Vœu 2</th><th>Vœu 3</th><th>Statut de saisie</th><th>Remarques</th></tr></thead>
+      <tbody>${lignes}</tbody></table></div>`;
+}
+
+/* 6 — Résultats brevet blanc */
+const MATIERES_BB = [
+  {cle:"fr",   lib:"Français",         coef:1},
+  {cle:"hg",   lib:"Histoire-géo",     coef:0.75},
+  {cle:"emc",  lib:"EMC",              coef:0.25},
+  {cle:"math", lib:"Math",             coef:1},
+  {cle:"svt",  lib:"SVT",              coef:1/3},
+  {cle:"pc",   lib:"Physique-chimie",  coef:1/3},
+  {cle:"tech", lib:"Technologie",      coef:1/3}
+];
+function moyenneBB(id,bb){
+  const d = etat.brevet[id]||{};
+  let somme=0, coefs=0;
+  MATIERES_BB.forEach(m=>{
+    const n = parseFloat(d[bb+"_"+m.cle]);
+    if(!isNaN(n)){ somme += n*m.coef; coefs += m.coef; }
+  });
+  return coefs>0 ? (somme/coefs) : null;
+}
+const EPREUVES = [
+  {cle:"fr",  lib:"Français",       max:100},
+  {cle:"ma",  lib:"Mathématiques",  max:100},
+  {cle:"hg",  lib:"Hist.-géo. EMC", max:50},
+  {cle:"sc",  lib:"Sciences",       max:50},
+  {cle:"oral",lib:"Oral",           max:100}
+];
+const TOTAL_MAX = EPREUVES.reduce((s,e)=>s+e.max,0);
+function r6(){
+  if(etat.eleves.length===0) return entete(5,"")+siVide();
+  const b=etat.brevet;
+  let sommeTotaux=0, nbNotes=0;
+  const lignes = eleveTri().map(e=>{
+    const d=b[e.id]||{};
+    let total=0, complet=true;
+    EPREUVES.forEach(ep=>{ const n=parseFloat(d[ep.cle]); if(isNaN(n))complet=false; else total+=n; });
+    if(complet){sommeTotaux+=total;nbNotes++;}
+    const cellules = EPREUVES.map(ep=>`
+      <td><input type="number" min="0" max="${ep.max}" step="0.5" style="max-width:80px"
+        value="${echap(d[ep.cle]??"")}" aria-label="${ep.lib}"
+        onchange="fiche('brevet','${e.id}')['${ep.cle}']=this.value;sauver();rendre()"></td>`).join("");
+    return `<tr>
+      <td class="nom-fixe">${echap(e.nom)} ${echap(e.prenom)}</td>
+      ${cellules}
+      <td class="calc">${complet? total+" / "+TOTAL_MAX : "—"}</td>
+      <td class="calc">${complet? (total/TOTAL_MAX*20).toFixed(1)+" /20" : ""}</td>
+    </tr>`;}).join("");
+  const moyClasse = nbNotes? (sommeTotaux/nbNotes/TOTAL_MAX*20).toFixed(1) : "—";
+  return entete(5,"Notes du brevet blanc par épreuve. Le total et l'équivalent sur 20 se calculent automatiquement.")+`
+    <div class="stats">
+      <div class="stat"><div class="val">${moyClasse}</div><div class="lib">Moyenne classe /20</div></div>
+      <div class="stat"><div class="val">${nbNotes}/${etat.eleves.length}</div><div class="lib">Dossiers complets</div></div>
+    </div>
+    <div class="carte defile"><table>
+      <thead><tr><th>Élève</th>${EPREUVES.map(e=>`<th>${e.lib} /${e.max}</th>`).join("")}<th>Total</th><th>≈ /20</th></tr></thead>
+      <tbody>${lignes}</tbody></table></div>`;
+}
+
+/* 7 — Planning remise des bulletins */
+function r7(){
+  const options = eleveTri().map(e=>({id:e.id,lib:`${e.nom} ${e.prenom}`}));
+  const rdvTries = [...etat.planning].sort((a,b)=>((a.date||"")+(a.heure||"")).localeCompare((b.date||"")+(b.heure||"")));
+  const faits = etat.planning.filter(p=>p.statut==="Remis").length;
+  const lignes = rdvTries.map(p=>`
+    <tr>
+      <td><input type="date" value="${echap(p.date??"")}" onchange="majRdv('${p.id}','date',this.value)"></td>
+      <td><input type="time" value="${echap(p.heure??"")}" onchange="majRdv('${p.id}','heure',this.value)"></td>
+      <td><select onchange="majRdv('${p.id}','eleveId',this.value)">
+        <option value=""></option>
+        ${options.map(o=>`<option value="${o.id}" ${o.id===p.eleveId?"selected":""}>${echap(o.lib)}</option>`).join("")}
+      </select></td>
+      <td><select onchange="majRdv('${p.id}','statut',this.value)">
+        <option value=""></option>
+        ${["Remis","Absent"]
+          .map(o=>`<option ${o===p.statut?"selected":""}>${o}</option>`).join("")}
+      </select></td>
+      <td><button class="suppr" title="Supprimer le rendez-vous" onclick="supprRdv('${p.id}')">✕</button></td>
+    </tr>`).join("");
+  return entete(6,"Rendez-vous de remise des bulletins aux familles : créneaux et présence.")+`
+    <div class="barre-outils">
+      <button class="action" onclick="ajoutRdv()">+ Ajouter un créneau</button>
+      ${etat.planning.length?`<span style="color:var(--gris);font-size:.88rem">${faits}/${etat.planning.length} bulletins remis</span>`:""}
+    </div>
+    ${etat.planning.length===0
+      ? `<div class="vide">Aucun créneau planifié. Ajoutez votre premier rendez-vous.</div>`
+      : `<div class="carte defile"><table>
+          <thead><tr><th>Date</th><th>Heure</th><th>Élève</th><th>Statut</th><th></th></tr></thead>
+          <tbody>${lignes}</tbody></table></div>`}`;
+}
+function ajoutRdv(){ etat.planning.push({id:uid(),statut:""}); sauver(); rendre(); }
+function majRdv(id,cle,val){ const p=etat.planning.find(x=>x.id===id); if(p){p[cle]=val;sauver(); if(cle!=="note")rendre();} }
+function supprRdv(id){ etat.planning=etat.planning.filter(x=>x.id!==id); sauver(); rendre(); }
+
+/* ===== Vue rubrique du menu gauche : liste de TOUS les eleves, puis detail ===== */
+const RUB_VERS_SOUS = {0:0, 1:1, 2:2, 3:3, 5:4};
+function apercuRub(i,e){
+  const id=e.id;
+  if(i===0) return e.tel||e.responsable||"Coordonnées, régime…";
+  if(i===1){ const d=((etat.conseil[id]||{})[trimestreActif])||{}; return d.moyenne?`Moyenne ${trimestreActif} : ${d.moyenne}/20`:"À compléter"; }
+  if(i===2){ const d=etat.orientation[id]||{}; return (d.voeuxProv&&d.voeuxProv.length)?d.voeuxProv.join(", "):(d.projet||"À compléter"); }
+  if(i===3){ const d=etat.stage[id]||{}; return d.entreprise||"À compléter"; }
+  if(i===4){ const d=etat.voeux[id]||{}; return d.v1||d.statut||"À compléter"; }
+  const m1=moyenneBB(id,"bb1");
+  return m1!==null?`Brevet blanc n°1 : ${m1.toFixed(1)}/20`:"À compléter";
+}
+function vueSaisieVoeux(){
+  if(etat.eleves.length===0) return entete(4,"")+siVide();
+  const nbProv = eleveTri().filter(e=>(etat.orientation[e.id]||{}).valideProv).length;
+  const nbDef  = eleveTri().filter(e=>(etat.orientation[e.id]||{}).valideDef).length;
+  const badges = arr => (arr&&arr.length)
+    ? arr.map(v=>`<span class="badge attente" style="margin:2px 4px 2px 0;display:inline-block">${echap(v)}</span>`).join("")
+    : `<span style="color:var(--gris)">—</span>`;
+  const lignes = eleveTri().map(e=>{
+    const o=etat.orientation[e.id]||{};
+    return `<tr>
+      <td class="nom-fixe">${echap(e.nom)} ${echap(e.prenom)}</td>
+      <td style="min-width:150px">${badges(o.voeuxProv)}</td>
+      <td class="coche"><input type="checkbox" ${o.valideProv?"checked":""} aria-label="Valider provisoires"
+        onchange="fiche('orientation','${e.id}').valideProv=this.checked;sauver();rendre()"></td>
+      <td style="min-width:150px">${badges(o.voeuxDef)}</td>
+      <td class="coche"><input type="checkbox" ${o.valideDef?"checked":""} aria-label="Valider définitifs"
+        onchange="fiche('orientation','${e.id}').valideDef=this.checked;sauver();rendre()"></td>
+    </tr>`;
+  }).join("");
+  return entete(4,"Tableau récapitulatif des vœux de chaque élève. Les cases « Validé » sont liées à la fiche d'orientation : cocher ici met à jour la fiche, et inversement.")+`
+    <div class="stats">
+      <div class="stat"><div class="val">${nbProv}/${etat.eleves.length}</div><div class="lib">Provisoires validés</div></div>
+      <div class="stat"><div class="val">${nbDef}/${etat.eleves.length}</div><div class="lib">Définitifs validés</div></div>
+    </div>
+    <div class="carte defile"><table>
+      <thead><tr>
+        <th>Élève</th><th>Vœux provisoires</th><th>Validé</th><th>Vœux définitifs</th><th>Validé</th>
+      </tr></thead>
+      <tbody>${lignes}</tbody></table></div>`;
+}
+function vueRubrique(){
+  const i=rubriqueActive;
+  if(i===6) return r7();
+  if(i===4) return vueSaisieVoeux();
+  if(etat.eleves.length===0) return entete(i,"")+siVide();
+  if(eleveRub){
+    const e=etat.eleves.find(x=>x.id===eleveRub);
+    if(e) return detailRub(i,e);
+    eleveRub=null;
+  }
+  return listeRub(i);
+}
+function listeRub(i){
+  const liste = eleveTri().filter(e=>((e.nom+" "+e.prenom).toLowerCase()).includes(filtre.toLowerCase()));
+  let html="", lettre="";
+  liste.forEach(e=>{
+    const l=(e.nom||"?")[0].toUpperCase();
+    if(l!==lettre){ lettre=l; html+=`<div class="lettre">${l}</div>`; }
+    html+=`<button class="contact" onclick="ouvrirEleveRub('${e.id}')">
+      <span class="avatar">${initiales(e)}</span>
+      <span class="infos"><span class="nom">${echap(e.nom)} ${echap(e.prenom)}</span><br>
+      <span class="detail">${echap(apercuRub(i,e))}</span></span>
+      <span class="fleche">›</span></button>`;
+  });
+  return entete(i,"Sélectionnez un élève pour saisir ou consulter uniquement ses données de cette rubrique.")+`
+    <div class="barre-outils">
+      <input class="recherche" id="champRecherche" placeholder="🔍 Rechercher un élève…" value="${echap(filtre)}"
+        oninput="rechercher(this.value)">
+      <span style="color:var(--gris);font-size:.88rem">${etat.eleves.length} élève${etat.eleves.length>1?"s":""}</span>
+    </div>
+    ${liste.length===0
+      ? `<div class="vide">Aucun élève ne correspond à « ${echap(filtre)} ».</div>`
+      : `<div class="repertoire">${html}</div>`}`;
+}
+function contenuVoeux(e){
+  const id=e.id;
+  return `<div class="carte"><div class="grille">
+    ${chpColl("Vœu 1 (établissement — formation)","voeux",id,"v1","text",true)}
+    ${chpColl("Vœu 2","voeux",id,"v2","text",true)}
+    ${chpColl("Vœu 3","voeux",id,"v3","text",true)}
+    ${chpSel("Statut de saisie","voeux",id,"statut",["À saisir","Saisi — en attente","Validé par la famille"])}
+    ${chpZone("Remarques","voeux",id,"remarque")}
+  </div></div>`;
+}
+function detailRub(i,e){
+  const contenu = (i===4) ? contenuVoeux(e) : contenuSous(RUB_VERS_SOUS[i], e);
+  return `
+    <button class="retour" onclick="retourListeRub()">‹ Retour à la liste</button>
+    <div class="entete-eleve">
+      <span class="avatar">${initiales(e)}</span>
+      <div><h2>${echap(e.nom)} ${echap(e.prenom)}</h2>
+        <div class="detail">${i+1}. ${echap(RUBRIQUES[i])}</div></div>
+    </div>`+contenu;
+}
+
+/* ================= Export / Import ================= */
+document.getElementById("btnExport").onclick = ()=>{
+  const blob = new Blob([JSON.stringify(etat,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const d = new Date().toISOString().slice(0,10);
+  a.download = `suivi-classe-${(etat.nomClasse||"classe").replace(/\s+/g,"-")}-${d}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+};
+document.getElementById("btnImport").onclick = ()=>document.getElementById("fichierImport").click();
+document.getElementById("fichierImport").onchange = ev=>{
+  const f=ev.target.files[0]; if(!f)return;
+  const lecteur=new FileReader();
+  lecteur.onload=()=>{ try{
+      const d=JSON.parse(lecteur.result);
+      if(!Array.isArray(d.eleves)) throw new Error();
+      if(!confirm("Remplacer les données actuelles par cette sauvegarde ?")) return;
+      etat=Object.assign(defaut(),d); sauver(); init();
+    }catch(e){ alert("Ce fichier n'est pas une sauvegarde valide."); } };
+  lecteur.readAsText(f); ev.target.value="";
+};
+
+/* ================= Rendu ================= */
+const RENDUS=[r1,r2,r3,r4,r5,r6,r7];
+const VUES_BAS={eleves:vueEleves, documents:vueDocuments, calendrier:vueCalendrier};
+function rendre(){
+  rendreMenu();
+  document.getElementById("contenu").innerHTML =
+    ongletBas ? VUES_BAS[ongletBas]() : vueRubrique();
+  window.scrollTo(0,0);
+}
+function init(){
+  const nc=document.getElementById("nomClasse");
+  nc.value = etat.nomClasse||"";
+  nc.onchange = ()=>{ etat.nomClasse=nc.value; sauver();
+    document.title = (etat.nomClasse?etat.nomClasse+" — ":"")+"Suivi de classe"; };
+  document.title = (etat.nomClasse?etat.nomClasse+" — ":"")+"Suivi de classe";
+  rendre();
+}
+
+/* ================= Verrouillage par mot de passe ================= */
+function verrouErr(msg){ const el=document.getElementById("verrouErr"); if(el) el.textContent=msg||""; }
+function masquerVerrou(){ document.getElementById("verrou").classList.add("cache"); }
+function afficherVerrou(html){
+  const v=document.getElementById("verrou");
+  v.innerHTML=html; v.classList.remove("cache");
+}
+function ecranCreation(){
+  afficherVerrou(`
+    <div class="boite">
+      <h2>Bienvenue</h2>
+      <p>Créez un mot de passe pour protéger l'accès à l'application. Il sera demandé à chaque ouverture et sert à chiffrer les données enregistrées sur cet appareil.</p>
+      <div class="err" id="verrouErr"></div>
+      <input type="password" id="mdp1" placeholder="Mot de passe (min. 4 caractères)" autocomplete="new-password"
+        onkeydown="if(event.key==='Enter')document.getElementById('mdp2').focus()">
+      <input type="password" id="mdp2" placeholder="Confirmer le mot de passe" autocomplete="new-password"
+        onkeydown="if(event.key==='Enter')creerMdp()">
+      <button class="action" onclick="creerMdp()">Créer le mot de passe</button>
+      <div class="note">Ce mot de passe sera partagé par tous les utilisateurs et sert à chiffrer les données. Il ne peut pas être récupéré s'il est oublié : notez-le en lieu sûr et exportez régulièrement une sauvegarde.</div>
+    </div>`);
+  setTimeout(()=>document.getElementById("mdp1")?.focus(),60);
+}
+function ecranDeverrouillage(){
+  afficherVerrou(`
+    <div class="boite">
+      <h2>Suivi de classe</h2>
+      <p>Saisissez votre mot de passe pour accéder à l'application.</p>
+      <div class="err" id="verrouErr"></div>
+      <input type="password" id="mdp1" placeholder="Mot de passe" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')deverrouiller()">
+      <button class="action" onclick="deverrouiller()">Déverrouiller</button>
+    </div>`);
+  setTimeout(()=>document.getElementById("mdp1")?.focus(),60);
+}
+async function creerMdp(){
+  const p1=document.getElementById("mdp1").value, p2=document.getElementById("mdp2").value;
+  if(p1.length<4){ verrouErr("Le mot de passe doit contenir au moins 4 caractères."); return; }
+  if(p1!==p2){ verrouErr("Les deux mots de passe ne correspondent pas."); return; }
+  try{
+    const sel = crypto.getRandomValues(new Uint8Array(16));
+    cleKey = await deriverCle(p1, sel);
+    const check = await chiffrer("SUIVI_OK");
+    // Reprise d'anciennes données locales non chiffrées, si présentes
+    let initial = defaut();
+    const ancien = localStorage.getItem("suiviClasse");
+    if(ancien){ try{ initial = Object.assign(defaut(), JSON.parse(ancien)); }catch(e){} }
+    etat = initial;
+    const data = await chiffrer(etat);
+    await ecrireMeta({sel:b64(sel), check, data});
+    localStorage.removeItem("suiviClasse");
+    demarrerSync();
+    masquerVerrou(); init();
+  }catch(e){ verrouErr("Impossible d'enregistrer. Vérifiez la connexion / la configuration de partage."); }
+}
+async function deverrouiller(){
+  const p=document.getElementById("mdp1").value;
+  if(!p){ verrouErr("Saisissez votre mot de passe."); return; }
+  try{
+    const meta = await lireMeta();
+    if(!meta || !meta.sel) throw new Error("no-meta");
+    cleKey = await deriverCle(p, deB64(meta.sel));
+    const check = await dechiffrer(meta.check);
+    if(check!=="SUIVI_OK") throw new Error("bad");
+    etat = meta.data ? Object.assign(defaut(), await dechiffrer(meta.data)) : defaut();
+    demarrerSync();
+    masquerVerrou(); init();
+  }catch(e){
+    cleKey=null;
+    verrouErr("Mot de passe incorrect.");
+    const i=document.getElementById("mdp1"); if(i){ i.value=""; i.focus(); }
+  }
+}
+async function demarrer(){
+  if(!(window.crypto && crypto.subtle)){
+    afficherVerrou(`<div class="boite"><h2>Non disponible</h2>
+      <p>La protection par mot de passe nécessite un contexte sécurisé. Ouvrez l'application via GitHub Pages (https) plutôt qu'en double-cliquant le fichier.</p></div>`);
+    return;
+  }
+  if(PARTAGE_ACTIF){
+    try{ firebase.initializeApp(FIREBASE_CONFIG); fbRef = firebase.database().ref("suiviClasse"); }
+    catch(e){ fbRef = null; }
+  }
+  let meta = null;
+  try{ meta = await lireMeta(); }catch(e){ meta = localMeta(); }
+  if(meta && meta.sel && meta.check) ecranDeverrouillage();
+  else ecranCreation();
+}
+demarrer();
+</script>
+</body>
+</html>
